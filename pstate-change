@@ -1,0 +1,49 @@
+#!/bin/bash
+
+if [ $(id -u) != 0 ]; then
+    echo "Must be ran as root."
+    exit 1
+fi
+
+buildArrays() {
+    stateArr=()
+    stateVal=()
+    IFS=$'\n'
+    for i in $(cat /sys/kernel/debug/dri/0/pstate); do
+        if echo $i | grep "^AC\|^DC">/dev/null; then
+            continue
+        else
+            stateArr+=($i)
+        fi
+    done
+    stateArr+=("AUTO")
+    IFS=$'\ '
+    for (( i=0; i<${#stateArr[@]}; i++ )); do
+        stateVal+=($(echo "${stateArr[$i]}" | awk -F':' '{print $1}'))
+    done
+}
+
+printOptions() {
+    echo -e "\nUsage:\n\tpstate-change [option number]\n"
+    echo -e "Options:\n(* == current)"
+    for (( i=0; i<"${#stateArr[@]}"; i++ )); do
+        printf "%s\n" "${stateArr[$i]}" | sed "s/^/\t$i)\ /"
+    done
+    echo ""
+}
+
+buildArrays
+if [[ $1 == "" ]]; then
+    printOptions
+    exit 0
+else
+    if [[ $1 < 0 || $1 > $((${#stateVal[@]}-1)) ]]; then
+        echo ${#stateVal[@]}
+        echo -e "Invalid selection.\nPlease use the number left of the options below:"
+        printOptions
+        exit 2
+    else
+        echo "${stateVal[$1]}" > /sys/kernel/debug/dri/0/pstate
+        exit 0
+    fi
+fi
